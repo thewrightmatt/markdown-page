@@ -8,6 +8,8 @@ A GitHub Pages website that displays releases from the [calculator repository](h
 - Displays markdown-formatted release notes
 - Automatically fetches new releases via GitHub Actions workflow
 - Can be manually triggered or automatically triggered by calculator releases
+- Creates pull requests for new releases instead of directly committing to main
+- Branch names match release versions for easy tracking
 
 ## Structure
 
@@ -20,7 +22,9 @@ A GitHub Pages website that displays releases from the [calculator repository](h
 ## Usage
 
 The website is automatically updated when:
-1. A new release is published in the calculator repository (via repository_dispatch)
+1. A new release is published in the calculator repository (via repository_dispatch or workflow_call)
 2. The workflow is manually triggered from the Actions tab
+3. The workflow creates a branch named after the release version and opens a pull request
+4. Once the PR is merged, the release appears on the website
 
 Each release is saved as a markdown file named after its tag and displayed on the website.

@@ -2,6 +2,7 @@ name: Fetch Calculator Releases
 
 on:
   workflow_dispatch:
+  workflow_call:
   repository_dispatch:
     types: [calculator-release]
 
@@ -10,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     
     steps:
       - name: Checkout repository
@@ -34,6 +36,9 @@ jobs:
           # Create filename from tag name (replace special characters)
           FILENAME=$(echo "$TAG_NAME" | sed 's/[^a-zA-Z0-9._-]/_/g').md
           
+          # Create branch name from tag name (same as filename without .md)
+          BRANCH_NAME=$(echo "$TAG_NAME" | sed 's/[^a-zA-Z0-9._-]/_/g')
+          
           # Create markdown file for the release
           cat > "releases/$FILENAME" << EOF
           # $RELEASE_NAME
@@ -50,6 +55,7 @@ jobs:
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
           echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
       
       - name: Update releases.json
         run: |
@@ -72,15 +78,38 @@ jobs:
             mv releases.json.tmp releases.json
           fi
       
-      - name: Commit and push changes
+      - name: Create branch and push changes
         run: |
+          BRANCH_NAME="${{ steps.fetch_release.outputs.branch_name }}"
+          TAG_NAME="${{ steps.fetch_release.outputs.tag_name }}"
+          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add releases/ releases.json
           
           if git diff --cached --quiet; then
             echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           else
-            git commit -m "Add release: ${{ steps.fetch_release.outputs.tag_name }}"
-            git push
+            # Create and switch to new branch
+            git checkout -b "$BRANCH_NAME"
+            git commit -m "Add release: $TAG_NAME"
+            git push origin "$BRANCH_NAME"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
+        id: push_changes
+      
+      - name: Create Pull Request
+        if: steps.push_changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ steps.fetch_release.outputs.branch_name }}"
+          TAG_NAME="${{ steps.fetch_release.outputs.tag_name }}"
+          RELEASE_NAME="${{ steps.fetch_release.outputs.release_name }}"
+          
+          gh pr create \
+            --title "Add release: $RELEASE_NAME" \
+            --body "Automatically fetched release $TAG_NAME from calculator repository." \
+            --base main \
+            --head "$BRANCH_NAME"
