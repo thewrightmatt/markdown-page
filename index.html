@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator Releases</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Calculator Releases</h1>
+        </header>
+        <nav id="release-list">
+            <h2>Releases</h2>
+            <ul id="releases"></ul>
+        </nav>
+        <main id="content">
+            <p>Select a release to view its details.</p>
+        </main>
+    </div>
+    <script>
+        // Fetch list of markdown files (releases)
+        async function loadReleases() {
+            try {
+                const response = await fetch('releases.json');
+                const releases = await response.json();
+                const releasesList = document.getElementById('releases');
+                
+                releases.forEach(release => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = release.name;
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        loadMarkdown(release.file);
+                    };
+                    li.appendChild(a);
+                    releasesList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error loading releases:', error);
+            }
+        }
+
+        // Load and render markdown file
+        async function loadMarkdown(filename) {
+            try {
+                const response = await fetch(`releases/${filename}`);
+                const markdown = await response.text();
+                const html = marked.parse(markdown);
+                document.getElementById('content').innerHTML = html;
+            } catch (error) {
+                document.getElementById('content').innerHTML = '<p>Error loading release information.</p>';
+                console.error('Error loading markdown:', error);
+            }
+        }
+
+        // Load releases on page load
+        window.addEventListener('DOMContentLoaded', loadReleases);
+    </script>
+</body>
+</html>
