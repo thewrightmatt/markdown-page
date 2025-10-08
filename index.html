@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calculator Releases</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -21,6 +20,68 @@
         </main>
     </div>
     <script>
+        // Simple markdown parser for basic markdown features
+        function parseMarkdown(markdown) {
+            let html = markdown;
+            
+            // Code blocks (must be processed first)
+            html = html.replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
+            
+            // Headers
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2">$1</a>');
+            
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Line breaks (two spaces at end of line)
+            html = html.replace(/  \n/g, '<br>');
+            
+            // Process lists
+            const lines = html.split('\n');
+            const processed = [];
+            let inList = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.match(/^[\*\-] /)) {
+                    if (!inList) {
+                        processed.push('<ul>');
+                        inList = true;
+                    }
+                    processed.push('<li>' + line.substring(2) + '</li>');
+                } else {
+                    if (inList) {
+                        processed.push('</ul>');
+                        inList = false;
+                    }
+                    processed.push(line);
+                }
+            }
+            if (inList) {
+                processed.push('</ul>');
+            }
+            html = processed.join('\n');
+            
+            // Paragraphs (double newlines)
+            html = html.split('\n\n').map(para => {
+                para = para.trim();
+                if (para && !para.match(/^<(h[1-6]|ul|ol|li|pre|blockquote)/)) {
+                    return '<p>' + para + '</p>';
+                }
+                return para;
+            }).join('\n');
+            
+            return html;
+        }
+        
         // Fetch list of markdown files (releases)
         async function loadReleases() {
             try {
@@ -50,7 +111,7 @@
             try {
                 const response = await fetch(`releases/${filename}`);
                 const markdown = await response.text();
-                const html = marked.parse(markdown);
+                const html = parseMarkdown(markdown);
                 document.getElementById('content').innerHTML = html;
             } catch (error) {
                 document.getElementById('content').innerHTML = '<p>Error loading release information.</p>';
