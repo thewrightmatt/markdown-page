@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator Releases</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Calculator Releases</h1>
+        </header>
+        <nav id="release-list">
+            <h2>Releases</h2>
+            <ul id="releases"></ul>
+        </nav>
+        <main id="content">
+            <p>Select a release to view its details.</p>
+        </main>
+    </div>
+    <script>
+        // Simple markdown parser for basic markdown features
+        function parseMarkdown(markdown) {
+            let html = markdown;
+            
+            // Code blocks (must be processed first)
+            html = html.replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
+            
+            // Headers
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2">$1</a>');
+            
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Line breaks (two spaces at end of line)
+            html = html.replace(/  \n/g, '<br>');
+            
+            // Process lists
+            const lines = html.split('\n');
+            const processed = [];
+            let inList = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.match(/^[\*\-] /)) {
+                    if (!inList) {
+                        processed.push('<ul>');
+                        inList = true;
+                    }
+                    processed.push('<li>' + line.substring(2) + '</li>');
+                } else {
+                    if (inList) {
+                        processed.push('</ul>');
+                        inList = false;
+                    }
+                    processed.push(line);
+                }
+            }
+            if (inList) {
+                processed.push('</ul>');
+            }
+            html = processed.join('\n');
+            
+            // Paragraphs (double newlines)
+            html = html.split('\n\n').map(para => {
+                para = para.trim();
+                if (para && !para.match(/^<(h[1-6]|ul|ol|li|pre|blockquote)/)) {
+                    return '<p>' + para + '</p>';
+                }
+                return para;
+            }).join('\n');
+            
+            return html;
+        }
+        
+        // Fetch list of markdown files (releases)
+        async function loadReleases() {
+            try {
+                const response = await fetch('releases.json');
+                const releases = await response.json();
+                const releasesList = document.getElementById('releases');
+                
+                releases.forEach(release => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = release.name;
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        loadMarkdown(release.file);
+                    };
+                    li.appendChild(a);
+                    releasesList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error loading releases:', error);
+            }
+        }
+
+        // Load and render markdown file
+        async function loadMarkdown(filename) {
+            try {
+                const response = await fetch(`releases/${filename}`);
+                const markdown = await response.text();
+                const html = parseMarkdown(markdown);
+                document.getElementById('content').innerHTML = html;
+            } catch (error) {
+                document.getElementById('content').innerHTML = '<p>Error loading release information.</p>';
+                console.error('Error loading markdown:', error);
+            }
+        }
+
+        // Load releases on page load
+        window.addEventListener('DOMContentLoaded', loadReleases);
+    </script>
+</body>
+</html>

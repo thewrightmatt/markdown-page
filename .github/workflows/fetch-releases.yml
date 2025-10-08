@@ -1,0 +1,86 @@
+name: Fetch Calculator Releases
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [calculator-release]
+
+jobs:
+  fetch-releases:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Fetch latest release from calculator repo
+        id: fetch_release
+        run: |
+          # Fetch the latest release from the calculator repository
+          RELEASE_DATA=$(curl -s -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/thewrightmatt/calculator/releases/latest)
+          
+          # Extract release information
+          TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name')
+          RELEASE_NAME=$(echo "$RELEASE_DATA" | jq -r '.name // .tag_name')
+          BODY=$(echo "$RELEASE_DATA" | jq -r '.body // "No description provided."')
+          PUBLISHED_AT=$(echo "$RELEASE_DATA" | jq -r '.published_at')
+          HTML_URL=$(echo "$RELEASE_DATA" | jq -r '.html_url')
+          
+          # Create filename from tag name (replace special characters)
+          FILENAME=$(echo "$TAG_NAME" | sed 's/[^a-zA-Z0-9._-]/_/g').md
+          
+          # Create markdown file for the release
+          cat > "releases/$FILENAME" << EOF
+          # $RELEASE_NAME
+          
+          **Release:** $TAG_NAME  
+          **Published:** $PUBLISHED_AT  
+          **URL:** [$HTML_URL]($HTML_URL)
+          
+          ## Release Notes
+          
+          $BODY
+          EOF
+          
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Update releases.json
+        run: |
+          FILENAME="${{ steps.fetch_release.outputs.filename }}"
+          RELEASE_NAME="${{ steps.fetch_release.outputs.release_name }}"
+          TAG_NAME="${{ steps.fetch_release.outputs.tag_name }}"
+          
+          # Read existing releases.json
+          if [ ! -f releases.json ]; then
+            echo "[]" > releases.json
+          fi
+          
+          # Check if release already exists
+          EXISTS=$(jq --arg file "$FILENAME" 'map(select(.file == $file)) | length' releases.json)
+          
+          if [ "$EXISTS" -eq 0 ]; then
+            # Add new release to the beginning of the list
+            jq --arg file "$FILENAME" --arg name "$RELEASE_NAME" --arg tag "$TAG_NAME" \
+              '. = [{file: $file, name: $name, tag: $tag}] + .' releases.json > releases.json.tmp
+            mv releases.json.tmp releases.json
+          fi
+      
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add releases/ releases.json
+          
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add release: ${{ steps.fetch_release.outputs.tag_name }}"
+            git push
+          fi
