@@ -1,5 +1,10 @@
 [
   {
+    "file": "1.0.0.md",
+    "name": "Initial Release",
+    "tag": "1.0.0"
+  },
+  {
     "file": "example-v0.9.9.md",
     "name": "Example Release v0.9.9",
     "tag": "v0.9.9"
